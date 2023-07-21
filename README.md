@@ -1,6 +1,7 @@
 # 개요
 테스트 코드 작성은 결국 추가작업입니다.  
 우리는 왜 추가적으로 기능을 개발하지 않고 테스트코드를 작성해야할까요?
+그리고 어떻게 작성해야할까요?
 
 - 테스트 코드는 피드백이 빠릅니다.  
 기능은 빠르게 변화하고 확장해갑니다. 
@@ -42,6 +43,40 @@
 
 경계값 테스트란 범위, 구간, 날짜 등 로직상 허용되는 경계에 해당하는 값을 테스트하는 것을 말합니다.
 
+### 예시
+#### 요구사항
+요구사항은 다음과 같습니다.
+> 음료를 주문할 때 음료의 수량은 1잔 이상 주문할 수 있다.
+
+#### 코드 작성
+다음과 같은 요구사항을 보고 테스트를 작성하였습니다.
+
+```java
+
+    /**
+     * Given: 키오스크가 존재하고
+     * Given: 메뉴에 아메리카노가 존재하다면
+     * When: 음료 0잔을 키오스크에 추가할 때
+     * Then: IllegalArgumentException 이 발생한다.
+     */
+    @Test
+    void addZeroBeverages() {
+        //given
+        CafeKiosk cafeKiosk = new CafeKiosk();
+        Americano americano = new Americano();
+
+        //when
+        Throwable throwable = catchThrowable(() -> cafeKiosk.add(americano, 0));
+
+        //then
+        assertThat(throwable)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("음료는 1잔 이상 주문하실 수 있습니다.");
+
+    }
+
+```
+
 ## 테스트에 용이한 코드
 
 테스트에 용이한 코드가 되기 위해 우리는 테스트하기 어려운 영역을 분리해야합니다.
@@ -70,3 +105,64 @@
 - 외부 세상과 단절된 형태
 - 테스트하기 쉬운 코드
 
+### 예시
+#### 요구사항
+요구사항은 다음과 같습니다.
+> 주문은 오전 10시부터 오후 10시 까지만 가능하다.
+
+#### 코드 작성
+기존의 코드가 이렇게 작성되어 있다고 가정해보겠습니다.
+```java
+    public Order createOrder() {
+        return new Order(LocalDateTime.now(), beverages);
+    }
+```
+
+해당 코드는 외부 세계에 영향을 받는 코드입니다.
+때문에 테스트에 용이하지 않습니다.
+주문시간이 테스트 작동시간에 묶여있기 때문인데요.
+
+이를 순수함수로 변경하고 요구사항에 맞게 변경하겠습니다.
+```java
+    public Order createOrder(LocalDateTime currentDateTime) {
+        LocalTime currentTime = currentDateTime.toLocalTime();
+        if (isOperationTime(currentTime)) {
+            throw new IllegalArgumentException("주문 시간이 아닙니다. 관리자에게 문의하세요.");
+        }
+
+        return new Order(currentDateTime, beverages);
+        }
+```
+
+이렇게 변경하면 테스트하기 쉬운 코드가 됩니다.
+```java
+
+    /**
+     * Given: 키오스크가 존재하고<br>
+     * Given: 메뉴에 아메리카노가 존재하고<br>
+     * Given: 주문 시간이 2023년 1월 17일 10시 0분이라면<br>
+     * When: 키오스크에 아메리카노를 추가하고<br>
+     * When: 주문을 할 때<br>
+     * Then: 주문이 생성된다.<br>
+     * Then: 주문에는 아메리카노가 담긴다.<br>
+     */
+    @Test
+    void createOrderWithCurrentTime() {
+        //given
+        CafeKiosk cafeKiosk = new CafeKiosk();
+        Americano americano = new Americano();
+        LocalDateTime now = LocalDateTime.of(2023, 1, 17, 10, 0);
+
+        //when
+        cafeKiosk.add(americano);
+        Order order = cafeKiosk.createOrder(now);
+
+        //then
+        assertThat(order.getBeverages())
+                .hasSize(1)
+                .containsOnly(americano);
+        assertThat(order.getBeverages())
+                .extracting(Beverage::getName)
+                .containsOnly("아메리카노");
+    }
+```
